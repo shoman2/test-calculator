@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>대한민국 선박 루트 3D 지구본 시뮬레이터</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: "Noto Sans KR", Arial, sans-serif;
+      background: #000814;
+      color: white;
+    }
+
+    #canvas-wrap {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      background:
+        radial-gradient(circle at 50% 45%, rgba(0, 180, 216, 0.22), transparent 28%),
+        radial-gradient(circle at 70% 30%, rgba(0, 245, 212, 0.12), transparent 22%),
+        linear-gradient(180deg, #000814 0%, #001d3d 50%, #000814 100%);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hud {
+      position: fixed;
+      left: 24px;
+      top: 24px;
+      width: 370px;
+      z-index: 20;
+      padding: 22px;
+      border-radius: 24px;
+      background: rgba(0, 18, 35, 0.72);
+      border: 1px solid rgba(0, 180, 216, 0.5);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(16px);
+    }
+
+    .badge {
+      display: inline-block;
+      margin-bottom: 14px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #00b4d8, #0077b6);
+      color: white;
+      font-size: 12px;
+      font-weight: 900;
+      box-shadow: 0 10px 25px rgba(0, 180, 216, 0.35);
+    }
+
+    .hud h1 {
+      margin: 0;
+      font-size: 25px;
+      letter-spacing: -0.8px;
+    }
+
+    .hud p {
+      margin: 10px 0 18px;
+      color: rgba(230, 250, 255, 0.78);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .route-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .route-btn {
+      border: 0;
+      width: 100%;
+      padding: 13px 14px;
+      border-radius: 16px;
+      text-align: left;
+      cursor: pointer;
+      color: white;
+      background: linear-gradient(135deg, rgba(0, 119, 182, 0.95), rgba(0, 180, 216, 0.75));
+      box-shadow: 0 12px 28px rgba(0, 119, 182, 0.24);
+      transition: 0.18s;
+      font-weight: 900;
+    }
+
+    .route-btn span {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+      opacity: 0.82;
+      font-weight: 700;
+    }
+
+    .route-btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.14);
+    }
+
+    .route-btn.active {
+      color: #061625;
+      background: linear-gradient(135deg, #ffd166, #f77f00);
+      box-shadow: 0 14px 40px rgba(247, 127, 0, 0.38);
+    }
+
+    .info {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      width: 380px;
+      z-index: 20;
+      padding: 22px;
+      border-radius: 24px;
+      background: rgba(0, 18, 35, 0.74);
+      border: 1px solid rgba(144, 224, 239, 0.42);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(16px);
+    }
+
+    .info h2 {
+      margin: 0 0 16px;
+      font-size: 24px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      gap: 11px 14px;
+      font-size: 14px;
+    }
+
+    .key {
+      color: rgba(202, 240, 248, 0.65);
+    }
+
+    .value {
+      font-weight: 900;
+      color: #fff;
+    }
+
+    .progress-wrap {
+      margin-top: 18px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      overflow: hidden;
+    }
+
+    .progress {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #00f5d4, #00bbf9, #fee440);
+      box-shadow: 0 0 22px rgba(0, 245, 212, 0.75);
+    }
+
+    .control-note {
+      position: fixed;
+      left: 24px;
+      bottom: 24px;
+      z-index: 20;
+      padding: 12px 16px;
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.8);
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(12px);
+      font-size: 13px;
+    }
+
+    .label {
+      position: fixed;
+      z-index: 15;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      color: white;
+      background: rgba(0, 29, 61, 0.78);
+      border: 1px solid rgba(144, 224, 239, 0.42);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
+    }
+
+    .label.ship {
+      color: #061625;
+      background: linear-gradient(135deg, #ffffff, #caf0f8);
+      border: 1px solid rgba(0, 180, 216, 0.6);
+    }
+
+    .error-box {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      z-index: 99;
+      display: none;
+      width: min(560px, calc(100% - 32px));
+      transform: translate(-50%, -50%);
+      padding: 22px;
+      border-radius: 20px;
+      background: rgba(120, 0, 0, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      line-height: 1.6;
+    }
+
+    @media (max-width: 850px) {
+      .hud {
+        left: 16px;
+        top: 16px;
+        width: calc(100% - 32px);
+      }
+
+      .info {
+        right: 16px;
+        bottom: 16px;
+        width: calc(100% - 32px);
+      }
+
+      .control-note {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="canvas-wrap"></div>
+
+  <section class="hud">
+    <div class="badge">🌊 대한민국 해양 물류 시뮬레이터</div>
+    <h1>선박 루트 3D 지구본</h1>
+    <p>
+      한국 항만에서 출항한 선박의 글로벌 항로를 3D 지구본 위에 표시합니다.
+      마우스로 회전하고 휠로 확대/축소할 수 있습니다.
+    </p>
+    <div class="route-list" id="routeList"></div>
+  </section>
+
+  <section class="info">
+    <h2 id="shipTitle">HMM PACIFIC</h2>
+
+    <div class="info-grid">
+      <div class="key">선박명</div>
+      <div class="value" id="shipName">HMM PACIFIC</div>
+
+      <div class="key">출항지</div>
+      <div class="value" id="origin">부산항</div>
+
+      <div class="key">도착지</div>
+      <div class="value" id="destination">LA항</div>
+
+      <div class="key">항로</div>
+      <div class="value" id="routeName">태평양 컨테이너 루트</div>
+
+      <div class="key">상태</div>
+      <div class="value" id="status">항해 중</div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress" id="progress"></div>
+    </div>
+  </section>
+
+  <div class="control-note">
+    🖱 드래그: 지구본 회전 · 휠: 줌인/줌아웃 · 버튼: 항로 전환
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- 안정적인 non-module 방식 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+    window.addEventListener("load", function () {
+      try {
+        if (!window.THREE) {
+          throw new Error("Three.js가 로드되지 않았습니다. 인터넷 연결 또는 CDN 차단 여부를 확인하세요.");
+        }
+
+        initSimulator();
+      } catch (error) {
+        showError(error);
+      }
+    });
+
+    function showError(error) {
+      const box = document.getElementById("errorBox");
+      box.style.display = "block";
+      box.innerHTML = `
+        <strong>3D 시뮬레이터 실행 오류</strong><br><br>
+        ${error.message}<br><br>
+        해결 방법:<br>
+        1. 인터넷 연결 확인<br>
+        2. 크롬 브라우저에서 실행<br>
+        3. 회사/기관망에서 CDN이 차단되어 있으면 개인 핫스팟으로 테스트
+      `;
+      console.error(error);
+    }
+
+    function initSimulator() {
+      const wrap = document.getElementById("canvas-wrap");
+
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x000814, 0.025);
+
+      const camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+
+      camera.position.set(0, 2.6, 7.2);
+
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true
+      });
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      wrap.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.rotateSpeed = 0.45;
+      controls.zoomSpeed = 0.8;
+      controls.minDistance = 3.0;
+      controls.maxDistance = 13;
+
+      const world = new THREE.Group();
+      scene.add(world);
+
+      const routeLayer = new THREE.Group();
+      world.add(routeLayer);
+
+      const markerLayer = new THREE.Group();
+      world.add(markerLayer);
+
+      const shipLayer = new THREE.Group();
+      world.add(shipLayer);
+
+      const labelItems = [];
+
+      // 조명
+      scene.add(new THREE.AmbientLight(0xffffff, 1.25));
+
+      const sun = new THREE.DirectionalLight(0xffffff, 1.9);
+      sun.position.set(5, 3, 5);
+      scene.add(sun);
+
+      const blueLight = new THREE.PointLight(0x00d4ff, 2.4, 12);
+      blueLight.position.set(-4, 2, 3);
+      scene.add(blueLight);
+
+      // 지구본
+      const earth = createEarth();
+      world.add(earth);
+
+      const atmosphere = new THREE.Mesh(
+        new THREE.SphereGeometry(2.08, 96, 96),
+        new THREE.MeshBasicMaterial({
+          color: 0x90e0ef,
+          transparent: true,
+          opacity: 0.14,
+          side: THREE.BackSide
+        })
+      );
+      world.add(atmosphere);
+
+      // 별 배경
+      createStars(scene);
+
+      const ports = {
+        busan: { name: "부산항", lat: 35.1796, lon: 129.0756 },
+        incheon: { name: "인천항", lat: 37.4563, lon: 126.7052 },
+        ulsan: { name: "울산항", lat: 35.5384, lon: 129.3114 },
+        la: { name: "LA항", lat: 33.7361, lon: -118.2639 },
+        singapore: { name: "싱가포르항", lat: 1.2644, lon: 103.82 },
+        rotterdam: { name: "로테르담항", lat: 51.9244, lon: 4.4777 },
+        shanghai: { name: "상하이항", lat: 31.2304, lon: 121.4737 },
+        sydney: { name: "시드니항", lat: -33.8688, lon: 151.2093 }
+      };
+
+      const routes = [
+        {
+          id: "pacific",
+          shipName: "HMM PACIFIC",
+          routeName: "태평양 컨테이너 루트",
+          origin: ports.busan,
+          destination: ports.la,
+          color: 0xffd166,
+          speed: 0.00115
+        },
+        {
+          id: "asean",
+          shipName: "KOREA BLUE OCEAN",
+          routeName: "동남아 물류 루트",
+          origin: ports.busan,
+          destination: ports.singapore,
+          color: 0x00f5d4,
+          speed: 0.00165
+        },
+        {
+          id: "europe",
+          shipName: "HMM ROTTERDAM",
+          routeName: "유럽 수에즈 루트",
+          origin: ports.incheon,
+          destination: ports.rotterdam,
+          color: 0x90dbf4,
+          speed: 0.00095
+        },
+        {
+          id: "china",
+          shipName: "ULSAN EXPRESS",
+          routeName: "동북아 근해 루트",
+          origin: ports.ulsan,
+          destination: ports.shanghai,
+          color: 0xff6b6b,
+          speed: 0.0021
+        },
+        {
+          id: "oceania",
+          shipName: "BUSAN STAR",
+          routeName: "오세아니아 수출 루트",
+          origin: ports.busan,
+          destination: ports.sydney,
+          color: 0xc77dff,
+          speed: 0.00125
+        }
+      ];
+
+      let activeRoute = routes[0];
+      let activeCurve = null;
+      let activeShip = null;
+      let progress = 0;
+
+      createRouteButtons(routes);
+
+      function createRouteButtons(routes) {
+        const list = document.getElementById("routeList");
+        list.innerHTML = "";
+
+        routes.forEach(function (route) {
+          const button = document.createElement("button");
+          button.className = "route-btn";
+          button.dataset.id = route.id;
+          button.innerHTML = `
+            🚢 ${route.shipName}
+            <span>${route.origin.name} → ${route.destination.name}</span>
+          `;
+
+          button.addEventListener("click", function () {
+            setRoute(route);
+          });
+
+          list.appendChild(button);
+        });
+      }
+
+      function setRoute(route) {
+        activeRoute = route;
+        activeCurve = null;
+        activeShip = null;
+        progress = 0;
+
+        clearLayer(routeLayer);
+        clearLayer(markerLayer);
+        clearLayer(shipLayer);
+        clearLabels();
+
+        activeCurve = createRoute(route);
+        createPortMarker(route.origin, 0x00f5d4);
+        createPortMarker(route.destination, route.color);
+        activeShip = createShip(route);
+
+        document.getElementById("shipTitle").textContent = route.shipName;
+        document.getElementById("shipName").textContent = route.shipName;
+        document.getElementById("origin").textContent = route.origin.name;
+        document.getElementById("destination").textContent = route.destination.name;
+        document.getElementById("routeName").textContent = route.routeName;
+        document.getElementById("status").textContent = "출항 준비";
+        document.getElementById("progress").style.width = "0%";
+
+        document.querySelectorAll(".route-btn").forEach(function (btn) {
+          btn.classList.toggle("active", btn.dataset.id === route.id);
+        });
+
+        focusRoute(route);
+      }
+
+      function createEarth() {
+        const texture = new THREE.CanvasTexture(makeEarthCanvas());
+        texture.needsUpdate = true;
+
+        const geometry = new THREE.SphereGeometry(2, 128, 128);
+        const material = new THREE.MeshStandardMaterial({
+          map: texture,
+          roughness: 0.88,
+          metalness: 0.05
+        });
+
+        return new THREE.Mesh(geometry, material);
+      }
+
+      function makeEarthCanvas() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 2048;
+        canvas.height = 1024;
+        const ctx = canvas.getContext("2d");
+
+        const ocean = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        ocean.addColorStop(0, "#001d3d");
+        ocean.addColorStop(0.4, "#0077b6");
+        ocean.addColorStop(1, "#00b4d8");
+
+        ctx.fillStyle = ocean;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = "rgba(255,255,255,0.12)";
+        ctx.lineWidth = 1;
+
+        for (let x = 0; x <= canvas.width; x += canvas.width / 24) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvas.height);
+          ctx.stroke();
+        }
+
+        for (let y = 0; y <= canvas.height; y += canvas.height / 12) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }
+
+        function land(points, color) {
+          ctx.beginPath();
+          ctx.moveTo(points[0][0] * canvas.width, points[0][1] * canvas.height);
+
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i][0] * canvas.width, points[i][1] * canvas.height);
+          }
+
+          ctx.closePath();
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
+
+        const green = "rgba(55, 178, 117, 0.88)";
+        const dark = "rgba(26, 117, 82, 0.9)";
+
+        land([[0.10,0.27],[0.25,0.18],[0.35,0.31],[0.30,0.48],[0.15,0.45],[0.06,0.34]], green);
+        land([[0.30,0.53],[0.38,0.60],[0.35,0.82],[0.29,0.92],[0.24,0.72]], dark);
+        land([[0.47,0.23],[0.63,0.18],[0.77,0.25],[0.76,0.39],[0.61,0.43],[0.48,0.35]], green);
+        land([[0.52,0.43],[0.62,0.45],[0.66,0.63],[0.60,0.78],[0.51,0.68],[0.48,0.54]], dark);
+        land([[0.70,0.34],[0.77,0.30],[0.84,0.36],[0.83,0.47],[0.75,0.50],[0.69,0.42]], green);
+        land([[0.78,0.67],[0.89,0.66],[0.92,0.76],[0.83,0.82],[0.75,0.74]], dark);
+
+        return canvas;
+      }
+
+      function createStars(scene) {
+        const geometry = new THREE.BufferGeometry();
+        const count = 1800;
+        const positions = [];
+
+        for (let i = 0; i < count; i++) {
+          const r = 70;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+
+          positions.push(
+            r * Math.sin(phi) * Math.cos(theta),
+            r * Math.sin(phi) * Math.sin(theta),
+            r * Math.cos(phi)
+          );
+        }
+
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+
+        const material = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 0.065,
+          transparent: true,
+          opacity: 0.8
+        });
+
+        scene.add(new THREE.Points(geometry, material));
+      }
+
+      function latLonToVector3(lat, lon, radius) {
+        const phi = THREE.MathUtils.degToRad(90 - lat);
+        const theta = THREE.MathUtils.degToRad(lon + 180);
+
+        const x = -radius * Math.sin(phi) * Math.cos(theta);
+        const y = radius * Math.cos(phi);
+        const z = radius * Math.sin(phi) * Math.sin(theta);
+
+        return new THREE.Vector3(x, y, z);
+      }
+
+      function makeCurve(origin, destination) {
+        const start = latLonToVector3(origin.lat, origin.lon, 2.08);
+        const end = latLonToVector3(destination.lat, destination.lon, 2.08);
+        const mid = start.clone().add(end).normalize().multiplyScalar(3.0);
+
+        return new THREE.CatmullRomCurve3([
+          start,
+          start.clone().lerp(mid, 0.45).normalize().multiplyScalar(2.55),
+          mid,
+          end.clone().lerp(mid, 0.45).normalize().multiplyScalar(2.55),
+          end
+        ]);
+      }
+
+      function createRoute(route) {
+        const curve = makeCurve(route.origin, route.destination);
+        const points = curve.getPoints(180);
+
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const lineMaterial = new THREE.LineBasicMaterial({
+          color: route.color,
+          transparent: true,
+          opacity: 0.95
+        });
+
+        const line = new THREE.Line(lineGeometry, lineMaterial);
+        routeLayer.add(line);
+
+        const dotGeometry = new THREE.BufferGeometry().setFromPoints(
+          points.filter(function (_, index) {
+            return index % 6 === 0;
+          })
+        );
+
+        const dotMaterial = new THREE.PointsMaterial({
+          color: route.color,
+          size: 0.055,
+          transparent: true,
+          opacity: 0.95
+        });
+
+        const dots = new THREE.Points(dotGeometry, dotMaterial);
+        routeLayer.add(dots);
+
+        return curve;
+      }
+
+      function createPortMarker(port, color) {
+        const pos = latLonToVector3(port.lat, port.lon, 2.12);
+
+        const marker = new THREE.Mesh(
+          new THREE.SphereGeometry(0.055, 24, 24),
+          new THREE.MeshBasicMaterial({ color: color })
+        );
+
+        marker.position.copy(pos);
+        markerLayer.add(marker);
+
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.075, 0.105, 32),
+          new THREE.MeshBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: 0.75,
+            side: THREE.DoubleSide
+          })
+        );
+
+        ring.position.copy(pos);
+        ring.lookAt(new THREE.Vector3(0, 0, 0));
+        markerLayer.add(ring);
+
+        addLabel(port.name, marker, "port");
+      }
+
+      function createShip(route) {
+        const ship = new THREE.Group();
+
+        const body = new THREE.Mesh(
+          new THREE.ConeGeometry(0.085, 0.26, 4),
+          new THREE.MeshStandardMaterial({
+            color: route.color,
+            emissive: route.color,
+            emissiveIntensity: 0.25,
+            metalness: 0.25,
+            roughness: 0.38
+          })
+        );
+
+        body.rotation.x = Math.PI / 2;
+        ship.add(body);
+
+        const cabin = new THREE.Mesh(
+          new THREE.BoxGeometry(0.08, 0.055, 0.075),
+          new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.5
+          })
+        );
+
+        cabin.position.set(0, 0.04, -0.04);
+        ship.add(cabin);
+
+        const light = new THREE.PointLight(route.color, 2, 1.5);
+        ship.add(light);
+
+        shipLayer.add(ship);
+        addLabel("🚢 " + route.shipName, ship, "ship");
+
+        return ship;
+      }
+
+      function addLabel(text, object, type) {
+        const div = document.createElement("div");
+        div.className = type === "ship" ? "label ship" : "label";
+        div.textContent = text;
+        document.body.appendChild(div);
+
+        labelItems.push({
+          element: div,
+          object: object
+        });
+      }
+
+      function clearLabels() {
+        while (labelItems.length > 0) {
+          const item = labelItems.pop();
+          item.element.remove();
+        }
+      }
+
+      function updateLabels() {
+        labelItems.forEach(function (item) {
+          const pos = new THREE.Vector3();
+          item.object.getWorldPosition(pos);
+
+          const projected = pos.clone().project(camera);
+
+          const x = (projected.x * 0.5 + 0.5) * window.innerWidth;
+          const y = (-projected.y * 0.5 + 0.5) * window.innerHeight;
+
+          item.element.style.left = x + "px";
+          item.element.style.top = y + "px";
+
+          const visible = projected.z < 1;
+          item.element.style.display = visible ? "block" : "none";
+        });
+      }
+
+      function updateShip() {
+        if (!activeCurve || !activeShip) return;
+
+        progress += activeRoute.speed;
+        if (progress > 1) progress = 0;
+
+        const pos = activeCurve.getPointAt(progress);
+        const next = activeCurve.getPointAt(Math.min(progress + 0.008, 1));
+
+        activeShip.position.copy(pos);
+
+        const direction = next.clone().sub(pos).normalize();
+        const q = new THREE.Quaternion();
+        q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+        activeShip.quaternion.copy(q);
+
+        const percent = Math.round(progress * 100);
+        document.getElementById("progress").style.width = percent + "%";
+
+        if (percent < 8) {
+          document.getElementById("status").textContent = "출항 완료";
+        } else if (percent > 88) {
+          document.getElementById("status").textContent = "입항 접근 중";
+        } else {
+          document.getElementById("status").textContent = "항해 중";
+        }
+      }
+
+      function focusRoute(route) {
+        const start = latLonToVector3(route.origin.lat, route.origin.lon, 2);
+        const end = latLonToVector3(route.destination.lat, route.destination.lon, 2);
+        const mid = start.clone().add(end).normalize();
+
+        const cameraStart = camera.position.clone();
+        const cameraEnd = mid.multiplyScalar(6.1);
+        const targetStart = controls.target.clone();
+        const targetEnd = new THREE.Vector3(0, 0, 0);
+
+        const startTime = performance.now();
+        const duration = 850;
+
+        function move(now) {
+          const t = Math.min((now - startTime) / duration, 1);
+          const ease = 1 - Math.pow(1 - t, 3);
+
+          camera.position.lerpVectors(cameraStart, cameraEnd, ease);
+          controls.target.lerpVectors(targetStart, targetEnd, ease);
+          controls.update();
+
+          if (t < 1) requestAnimationFrame(move);
+        }
+
+        requestAnimationFrame(move);
+      }
+
+      function clearLayer(layer) {
+        while (layer.children.length > 0) {
+          const obj = layer.children[0];
+          layer.remove(obj);
+
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) obj.material.dispose();
+        }
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        world.rotation.y += 0.0018;
+        atmosphere.rotation.y -= 0.001;
+
+        updateShip();
+        updateLabels();
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener("resize", function () {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      setRoute(routes[0]);
+      animate();
+    }
+  </script>
+</body>
+</html>
